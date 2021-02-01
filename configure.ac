@@ -1,7 +1,7 @@
 # -*- mode: m4; -*-
 dnl Process this file with autoconf 2.61 (or higher) to produce a configure script.
 AC_PREREQ(2.61)
-AC_INIT([lcdproc], [0.5dev], [lcdproc@lists.omnipotent.net])
+AC_INIT([lcdproc], [0.5dev], [https://github.com/lcdproc/lcdproc/issues/])
 AC_CONFIG_SRCDIR([clients/lcdproc/batt.c])
 AM_INIT_AUTOMAKE
 
@@ -69,9 +69,11 @@ fi
 
 dnl Checks for programs used in building
 AC_PROG_CC
+AC_PROG_CC_STDC
 AC_PROG_CPP
 AC_PROG_INSTALL
 AC_PROG_RANLIB
+AM_PROG_AR
 AM_PROG_CC_C_O
 AC_PATH_PROG([XMLTO], [xmlto], [no])
 
@@ -245,7 +247,7 @@ AC_ARG_WITH(lcdport,
 )
 AC_DEFINE_UNQUOTED(LCDPORT, $LCDPORT, [Set default port where LCDd should listen])
 
-AC_DEFINE_UNQUOTED(PROTOCOL_VERSION, "0.3", [Define version of lcdproc client-server protocol])
+AC_DEFINE_UNQUOTED(PROTOCOL_VERSION, "0.4", [Define version of lcdproc client-server protocol])
 
 AC_DEFINE_UNQUOTED(API_VERSION, "0.5", [Define version of lcdproc API])
 
@@ -314,9 +316,12 @@ AC_MSG_RESULT($enable_libftdi)
 
 if test "$enable_libftdi" = "yes"; then
 	ifdef([PKG_CHECK_MODULES],
-	 	[PKG_CHECK_MODULES(LIBFTDI, libftdi >= 0.8,
+		[PKG_CHECK_MODULES(LIBFTDI, [libftdi1 >= 0.8],
 			[AC_DEFINE(HAVE_LIBFTDI, [1], [Define to 1 if you have libftdi])],
-			[ enable_libftdi=no ])],
+			[PKG_CHECK_MODULES(LIBFTDI, [libftdi >= 0.8],
+				[AC_DEFINE(HAVE_LIBFTDI, [1], [Define to 1 if you have libftdi])],
+				[ enable_libftdi=no ])],
+		)],
 		[AC_MSG_WARN([pkg-config not (fully) installed; drivers requiring libftdi may not be built])])
 fi
 AC_SUBST(LIBFTDI_LIBS)
@@ -442,14 +447,6 @@ AC_SUBST(pidfiledir)
 
 
 # Features applicable to the server
-AC_ARG_ENABLE(seamless-hbars,
-	[AS_HELP_STRING([--enable-seamless-hbars], [no gaps in horizontal bar graphs (if HW supports it)])],
-	[ if test "$enableval" != "no" ; then
-		AC_DEFINE(SEAMLESS_HBARS, [1],
-			[Define to 1 to avoid gaps in horizontal bar graphs (if HW supports it)])
-	fi ]
-)
-
 AC_ARG_ENABLE(testmenus,
 	[AS_HELP_STRING([--enable-testmenus], [enable server test menus])],
 	[ if test "$enableval" != "no" ; then
@@ -458,13 +455,6 @@ AC_ARG_ENABLE(testmenus,
 	fi ]
 )
 
-AC_ARG_ENABLE(permissive_menu_goto,
-	[AS_HELP_STRING([--enable-permissive-menu-goto], [allow transitions between different client's menus])],
-	[ if test "$enableval" != "no" ; then
-		AC_DEFINE(LCDPROC_PERMISSIVE_MENU_GOTO, [1],
-			[Define to 1 to allow transitions between different client's menus])
-	fi ]
-)
 
 dnl Features applicable to the lcdproc client
 AC_ARG_ENABLE(lcdproc-menus,

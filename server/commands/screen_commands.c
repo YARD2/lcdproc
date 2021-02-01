@@ -316,33 +316,31 @@ screen_set_func(Client *c, int argc, char **argv)
 			if (argc > i + 1) {
 				i++;
 				debug(RPT_DEBUG, "screen_set: backlight=\"%s\"", argv[i]);
-				/* set the backlight status based on what the client has set*/
-				switch(c->backlight) {
-					case BACKLIGHT_OPEN:
-						if (strcmp("on", argv[i]) == 0)
-							s->backlight = BACKLIGHT_ON;
+				if (strcmp("on", argv[i]) == 0)
+					s->backlight = BACKLIGHT_ON;
 
-						if (strcmp("off", argv[i]) == 0)
-							s->backlight = BACKLIGHT_OFF;
+				else if (strcmp("off", argv[i]) == 0)
+					s->backlight = BACKLIGHT_OFF;
 
-						if (strcmp("toggle", argv[i]) == 0) {
-							if (s->backlight == BACKLIGHT_ON)
-								s->backlight = BACKLIGHT_OFF;
-							else if (s-backlight == BACKLIGHT_OFF)
-								s->backlight = BACKLIGHT_ON;
-						}
-
-						if (strcmp("blink", argv[i]) == 0)
-							s->backlight  |= BACKLIGHT_BLINK;
-
-						if (strcmp("flash", argv[i]) == 0)
-							s->backlight |= BACKLIGHT_FLASH;
-					break;
-					default:
-						/*If the backlight is not OPEN then inherit its state*/
-						s->backlight = c->backlight;
-					break;
+				else if (strcmp("toggle", argv[i]) == 0) {
+					if (s->backlight == BACKLIGHT_ON)
+						s->backlight = BACKLIGHT_OFF;
+					else if (s-backlight == BACKLIGHT_OFF)
+						s->backlight = BACKLIGHT_ON;
 				}
+
+				else if (strcmp("blink", argv[i]) == 0)
+					s->backlight  |= BACKLIGHT_BLINK;
+
+				else if (strcmp("flash", argv[i]) == 0)
+					s->backlight |= BACKLIGHT_FLASH;
+
+				else if (strcmp("open", argv[i]) == 0)
+					s->backlight = BACKLIGHT_OPEN;
+
+				else
+					sock_send_error(c->sock, "unknown backlight mode\n");
+
 				sock_send_string(c->sock, "success\n");
 			}
 			else {
@@ -413,159 +411,6 @@ screen_set_func(Client *c, int argc, char **argv)
 
 		else sock_send_error(c->sock, "invalid parameter\n");
 	}/* done checking argv*/
-	return 0;
-}
-
-/**
- * Tells the server the client would like to accept keypresses
- * of a particular type when the given screen is active on the display
- *
- *\verbatim
- * Usage: screen_add_key <screenid> <keylist>
- *\endverbatim
- */
-int
-screen_add_key_func(Client *c, int argc, char **argv)
-{
-	Screen *s;  /* Attached to a specific screen */
-	char *id;  /* Screen ID */
-	char *keys;  /* Keys wanted */
-
-	if (c->state != ACTIVE)
-		return 1;
-
-	if (argc != 3) {
-		switch (argc) {
-			case 1:
-				sock_send_error(c->sock, "Usage: screen_add_key <screenid> <keylist>\n");
-				break;
-			case 2:
-				sock_send_error(c->sock, "You must specify a key list\n");
-				break;
-			default:
-				sock_send_error(c->sock, "Too many parameters...\n");
-				break;
-		}
-		return 0;
-	}
-
-	id = argv[1];
-	keys = argv[2];
-	debug(RPT_DEBUG, "screen_add_key: Adding key(s) %s to screen %s", keys, id);
-
-	/* Find the screen*/
-	s = client_find_screen(c, id);
-	if (!s) {
-		sock_send_error(c->sock, "Unknown screen id\n");
-		return 0;
-	}
-
-	/* Save the keys*/
-	if (s->keys == NULL) {
-		/* Save supplied key list*/
-		s->keys = strdup(keys);
-	}
-	else {
-		/* Add supplied keys to existing list
-		 * NOTE: There could be duplicates in the resulting list
-		 *    That's OK, it's the existence of the key in the list
-		 *    that's important.  We'll be more careful in the delete
-		 *    key function.
-		 */
-		char *new_keys;
-		new_keys = realloc(s->keys, strlen(s->keys) + strlen(keys) +1);
-		if (new_keys) {
-			strcpy(new_keys, s->keys);
-			strcat(new_keys, keys);
-			free(s->keys);
-			s->keys = new_keys;
-		}
-		else {
-			sock_send_error(c->sock, "Could not add new keys\n");
-			return 0;
-		}
-	}
-
-	if (s->keys == NULL)
-		sock_send_error(c->sock, "failed\n");
-	else
-		sock_send_string(c->sock, "success\n");
-
-	return 0;
-}
-
-/**
- * Tells the server the client would NOT like to accept keypresses
- * of a particular type when the given screen is active on the display
- *
- *\verbatim
- * Usage: screen_del_key <screenid> <keylist>
- *\endverbatim
- */
-int
-screen_del_key_func(Client *c, int argc, char **argv)
-{
-	Screen *s;  /* Attached to a specific screen */
-	char *id;  /* Screen ID */
-	char *keys;  /* Keys wanted */
-
-	if (c->state != ACTIVE)
-		return 1;
-
-	if (argc != 3) {
-		switch (argc) {
-			case 1:
-				sock_send_error(c->sock, "Usage: screen_del_key <screenid> <keylist>\n");
-				break;
-			case 2:
-				sock_send_error(c->sock, "You must specify a key list\n");
-				break;
-			default:
-				sock_send_error(c->sock, "Too many parameters\n");
-				break;
-		}
-		return 0;
-	}
-
-	id = argv[1];
-	keys = argv[2];
-	debug(RPT_DEBUG, "screen_del_key: Deleting key(s) %s from screen %s", keys, id);
-
-	/* Find the screen*/
-	s = client_find_screen(c, id);
-	if (s == NULL) {
-		sock_send_error(c->sock, "Unknown screen id\n");
-		return 0;
-	}
-
-	/* Do we have keys?*/
-	if (s->keys != NULL) {
-		/* Have keys, remove keys from the list
-		 * NOTE: We let malloc/realloc remember the length
-		 *    of the allocated storage.  If keys are later
-		 *    added, realloc (in add_key above) will make
-		 *    sure there is enough space at s->keys
-		 */
-		char *from;
-		char *to;
-
-		to = from = s->keys;
-		while (*from != '\0') {
-			/* Is this key to be deleted from the list? */
-			if (strchr(keys, *from) == 0) {
-				/* Yes, skip it */
-				++from;
-			}
-			else {
-				/* No, save it */
-				*to++ = *from++;
-			}
-		}
-		to = '\0';	/* terminates the new keys string...*/
-	}
-
-	sock_send_string(c->sock, "success\n");
-
 	return 0;
 }
 

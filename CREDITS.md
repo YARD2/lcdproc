@@ -118,6 +118,7 @@ flexible :)
 	- PIC-an-LCD original driver (later merged into HD44780 driver)
 	- fixes & tests to the MtxOrb driver and some clients
 	- lcdident.pl client
+	- updated lcdmetar.pl client to pull METARs from the new NOAA site
 
 
 - Michael Reinelt
@@ -418,14 +419,50 @@ flexible :)
 	  (https://github.com/lcdproc/lcdproc/pull/6)
 
 
-- [Harald Geyer](mailto:harald@ccbib.org)
+- [Harald Geyer](http://friends.ccbib.org/harald/supporting/)
 
   - Driver for the linux input subsystem
   - Driver and font for Olimex MOD-LCD1x9 14 segment display
   - Various minor and not-so-minor cleanups and fixes
 
 
+- M. Feser and R. Geigenberger <yard2lcdproc (.A.T.) yard2usb.de>
+
+  - Driver for YARD2 display devices
+  
+
 - Colin Munro (colinmunro)
 - Shane Spencer (hardwire)
 - Jim McCracken (merlin_jim)
 - Luis Llorente	(luisllo)
+
+- [Sam Bingner](mailto:sam@bingner.com)
+
+	- Updated icp_a106 driver to support icp_a125 used in QNAP devices
+	  and to add button support
+
+- [Fatih Aşıcı](mailto:fatih.asici@gmail.com)
+
+  - Driver for hd44780 connection type using linux GPIO interface
+
+- Guillaume Membré
+
+  - Documentation updates
+
+- [Alex Wood](mailto:thetewood@gmail.com)
+
+  - Driver for the Futaba TOSD-5711BB VFDisplay on Elonex Artisan/Scaleo/FIC
+    Spectra Media Cenre PCs amoungst others
+
+- [Francois Mertz](mailto:fireboxled@gmail.com)
+
+  - Parallel Port LCD driver for the Watchguard/Lanner firewall appliances (sdeclcd)
+
+  - Supplemented HD44780 serial driver to support Portwell EZIO-100 and EZIO-300 LCDs found in Portwell, Caswell and Check Point firewall appliances
+
+- [Michał Skalski](mailto:mskalski13@gmail.com)
+
+  - Support for HD44780-compatible Winstar OLED displays: WEH001604A, WEH002004A and similar in hd44780 driver
+
+  - Added to HD44780 driver support for internal backlight handling (by means of levels of brightness)
+    for Winsar OLED and PTC PT6314 VFD (for the latter credits go to trex2000 GitHub user).

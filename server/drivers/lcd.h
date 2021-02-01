@@ -97,6 +97,7 @@
 #define BAR_PATTERN_FILLED	0x000 /* default */
 #define BAR_PATTERN_OPEN	0x010
 #define BAR_PATTERN_STRIPED	0x020
+#define BAR_SEAMLESS		0x040
 #define BAR_WITH_PERCENTAGE	0x100
 
 /* Cursor types */
@@ -155,6 +156,7 @@ typedef struct lcd_logical_driver {
 	/* extended output functions (optional; core provides alternatives) */
 	void (*vbar)		(struct lcd_logical_driver *drvthis, int x, int y, int len, int promille, int pattern);
 	void (*hbar)		(struct lcd_logical_driver *drvthis, int x, int y, int len, int promille, int pattern);
+	void (*pbar)		(struct lcd_logical_driver *drvthis, int x, int y, int width, int promille);
 	void (*num)		(struct lcd_logical_driver *drvthis, int x, int num);
 	void (*heartbeat)	(struct lcd_logical_driver *drvthis, int state);
 	int (*icon)		(struct lcd_logical_driver *drvthis, int x, int y, int icon);
@@ -205,10 +207,6 @@ typedef struct lcd_logical_driver {
 	const char *( *config_get_string)(const char *sectionname, const char *keyname, int skip, const char *default_value);
 	int (*config_has_section)	(const char *sectionname);
 	int (*config_has_key)		(const char *sectionname, const char *keyname);
-
-	/* Reporting function */
-	/* Easily usable by including drivers/report.h */
-	void (*report)			(const int level, const char *format, .../*args*/ );
 
 	/* Display properties functions (for drivers that adapt to other loaded drivers) */
 	int (*request_display_width) ();

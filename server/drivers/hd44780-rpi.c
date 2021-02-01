@@ -56,7 +56,7 @@
 
 #include "hd44780-rpi.h"
 #include "hd44780-low.h"
-#include "report.h"
+#include "shared/report.h"
 
 void lcdrpi_HD44780_senddata(PrivateData *p, unsigned char displayID, unsigned char flags, unsigned char ch);
 void lcdrpi_HD44780_backlight(PrivateData *p, unsigned char state);
@@ -70,6 +70,8 @@ void lcdrpi_HD44780_close(PrivateData *p);
  * This pointer is outside PrivataData as it needs to be volatile!
  */
 static volatile unsigned int *gpio_map = NULL;
+
+static unsigned int gpio_base_address = 0;
 
 /*
  * Two different board revisions are currently in widespread use. The
@@ -86,7 +88,7 @@ static const int gpio_pins_R1[GPIO_PINS] = {
 };
 
 static const int gpio_pins_R2[GPIO_PINS] = {
-	-1, -1, -1, 3, 4, -1, -1, 7,
+	-1, -1, 2, 3, 4, -1, -1, 7,
 	8, 9, 10, 11, -1, -1, 14, 15,
 	-1, 17, 18, -1, -1, -1, 22, 23,
 	/* 28-31 accessible via P5 */
@@ -119,7 +121,7 @@ setup_io(Driver *drvthis)
 					 PROT_READ | PROT_WRITE,
 					 MAP_SHARED,
 					 mem_fd,
-					 GPIO_BASE);
+					 gpio_base_address);
 
 	if (gpio_map == MAP_FAILED) {
 		report(RPT_ERR, "setup_io: mmap failed: %s", strerror(errno));
@@ -152,36 +154,57 @@ check_board_rev(Driver *drvthis)
 		return NULL;
 	}
 
+	hw[0] = '\0';	/* initialize hw as empty string */
 	while (!feof(fp)) {
 		fgets(buf, sizeof(buf), fp);
 		sscanf(buf, "Hardware	: %7s", hw);
+		hw[7] = '\0';
 		sscanf(buf, "Revision	: %x", &rev);
 	}
 	fclose(fp);
 
 	/* On boards that have been overvolted, the MSB will be set */
-	rev &= 0x00ff;
-
-	if (strcmp(hw, "BCM2708") != 0 || rev == 0) {
+	if ((strcmp(hw, "BCM2708") != 0 &&
+	     strcmp(hw, "BCM2709") != 0 &&
+	     strcmp(hw, "BCM2835") != 0) ||
+	    rev & 0xFFFFFF == 0) {
 		report(RPT_ERR, "check_board_rev: This board is not recognized as a Raspberry Pi!");
 		return NULL;
 	}
 
-	/* Rev 1 boards will be 0x002 or 0x003 (not sure if 0x001 ever existed
-	 * in the wild). */
-	if (rev < 4) {
-		report(RPT_INFO, "check_board_rev: Revision 1 board detected");
-		return gpio_pins_R1;
-	}
-	/* Currently, Rev 2 boards are 0x004, 0x005, or 0x006. This will need
-	 * updating as new revisions are released, but it is unlikely that P1
-	 * will change. */
-	if (rev > 3) {
-		report(RPT_INFO, "check_board_rev: Revision 2 board detected");
+	/* detect boards based on WiringPi's logic: */
+	/* + new style of detection: rev has 23rd bit set */
+	if ((rev & (1 << 23)) != 0) {
+		unsigned int bType = (rev & (0xFF << 4)) >> 4;
+
+		if (bType <= 3 || bType == 5 || bType == 6) {
+			/* older boards: A, B, A+, B+, ALPHA, CM */
+			report(RPT_INFO, "check_board_rev: Revision 2 board detected");
+			gpio_base_address = BCM2835_PERI_BASE_OLD + GPIO_BASE_OFFSET;
+		}
+		else {
+			/* modern boards: Pi2 B, Pi3 B */
+			report(RPT_INFO, "check_board_rev: Raspberry Pi 2 or higher detected");
+			gpio_base_address = BCM2835_PERI_BASE_NEW + GPIO_BASE_OFFSET;
+		}
 		return gpio_pins_R2;
 	}
+	/* + old style of detection */
+	else {
+		gpio_base_address = BCM2835_PERI_BASE_OLD + GPIO_BASE_OFFSET;
 
-	return NULL;
+		rev &= 0xFF;
+		if (rev < 0x04) {
+			/* Rev 1 boards will be 0x02 or 0x03. */
+			report(RPT_INFO, "check_board_rev: Revision 1 board detected");
+			return gpio_pins_R1;
+		}
+		else {
+			/* Rev 2 boards are 0x04, and higher */
+			report(RPT_INFO, "check_board_rev: Revision 2 board detected");
+			return gpio_pins_R2;
+		}
+	}
 }
 
 
@@ -228,11 +251,11 @@ setup_gpio(Driver *drvthis, int gpio)
 {
 	volatile int i;
 
-#define GPPUP    gpio_map + 37
+#define GPPUD    gpio_map + 37
 #define GPPUDCLK gpio_map + 38
 
 	/* Disable pull-up/down */
-	*(GPPUP) &= ~3;
+	*(GPPUD) &= ~3;
 
 	/*
 	 * After writing to the GPPUD register, need to wait 150 cycles as per
@@ -251,7 +274,7 @@ setup_gpio(Driver *drvthis, int gpio)
 	while (--i);
 
 	/* Write again to GPPUD and disable clock */
-	*(GPPUP) &= ~3;
+	*(GPPUD) &= ~3;
 	*(GPPUDCLK + (gpio / 32)) = 0;
 
 	/*
@@ -261,6 +284,38 @@ setup_gpio(Driver *drvthis, int gpio)
 	 */
 	*(gpio_map + (gpio / 10)) =
 		(*(gpio_map + (gpio / 10)) & ~(7 << ((gpio % 10) * 3))) | (1 << ((gpio % 10) * 3));
+}
+
+
+/**
+ * Send 4-bit data.
+ *
+ * \param p     Pointer to driver's private data structure.
+ * \param ch    The value to send (lower nibble must contain the data).
+ */
+static void
+send_nibble(PrivateData *p, unsigned char ch, unsigned char displayID)
+{
+	if (gpio_map != NULL) {
+		SET_GPIO(p->rpi_gpio->d7, ch & 0x08);
+		SET_GPIO(p->rpi_gpio->d6, ch & 0x04);
+		SET_GPIO(p->rpi_gpio->d5, ch & 0x02);
+		SET_GPIO(p->rpi_gpio->d4, ch & 0x01);
+		p->hd44780_functions->uPause(p, 50);
+
+		/* Data is clocked on the falling edge of EN */
+		if (displayID == 1 || displayID == 0)
+			SET_GPIO(p->rpi_gpio->en, 1);
+		if (displayID == 2 || (p->numDisplays > 1 && displayID == 0))
+			SET_GPIO(p->rpi_gpio->en2, 1);
+		p->hd44780_functions->uPause(p, 50);
+
+		if (displayID == 1 || displayID == 0)
+			SET_GPIO(p->rpi_gpio->en, 0);
+		if (displayID == 2 || (p->numDisplays > 1 && displayID == 0))
+			SET_GPIO(p->rpi_gpio->en2, 0);
+		p->hd44780_functions->uPause(p, 50);
+	}
 }
 
 
@@ -278,7 +333,7 @@ lcdrpi_HD44780_close(PrivateData *p)
 	INP_GPIO(p->rpi_gpio->d6);
 	INP_GPIO(p->rpi_gpio->d5);
 	INP_GPIO(p->rpi_gpio->d4);
-	if (p->have_backlight)
+	if (have_backlight_pin(p))
 		INP_GPIO(p->backlight_bit);
 	if (p->numDisplays > 1)
 		INP_GPIO(p->rpi_gpio->en2);
@@ -321,12 +376,12 @@ hd_init_rpi(Driver *drvthis)
 	p->rpi_gpio->d5 = drvthis->config_get_int(drvthis->name, "pin_D5", 0, RPI_DEF_D5);
 	p->rpi_gpio->d4 = drvthis->config_get_int(drvthis->name, "pin_D4", 0, RPI_DEF_D4);
 
-	debug(RPT_INFO, "hd_init_rpi: Pin EN mapped to GPIO%d", p->rpi_gpio->en);
-	debug(RPT_INFO, "hd_init_rpi: Pin RS mapped to GPIO%d", p->rpi_gpio->rs);
-	debug(RPT_INFO, "hd_init_rpi: Pin D4 mapped to GPIO%d", p->rpi_gpio->d4);
-	debug(RPT_INFO, "hd_init_rpi: Pin D5 mapped to GPIO%d", p->rpi_gpio->d5);
-	debug(RPT_INFO, "hd_init_rpi: Pin D6 mapped to GPIO%d", p->rpi_gpio->d6);
-	debug(RPT_INFO, "hd_init_rpi: Pin D7 mapped to GPIO%d", p->rpi_gpio->d7);
+	report(RPT_INFO, "hd_init_rpi: Pin EN mapped to GPIO%d", p->rpi_gpio->en);
+	report(RPT_INFO, "hd_init_rpi: Pin RS mapped to GPIO%d", p->rpi_gpio->rs);
+	report(RPT_INFO, "hd_init_rpi: Pin D4 mapped to GPIO%d", p->rpi_gpio->d4);
+	report(RPT_INFO, "hd_init_rpi: Pin D5 mapped to GPIO%d", p->rpi_gpio->d5);
+	report(RPT_INFO, "hd_init_rpi: Pin D6 mapped to GPIO%d", p->rpi_gpio->d6);
+	report(RPT_INFO, "hd_init_rpi: Pin D7 mapped to GPIO%d", p->rpi_gpio->d7);
 
 	if (check_pin(drvthis, p->rpi_gpio->en, allowed_gpio_pins, used_pins) ||
 	    check_pin(drvthis, p->rpi_gpio->rs, allowed_gpio_pins, used_pins) ||
@@ -347,13 +402,13 @@ hd_init_rpi(Driver *drvthis)
 		}
 	}
 
-	if (p->have_backlight) {	/* Backlight setup is optional */
+	if (have_backlight_pin(p)) {	/* Backlight setup is optional */
 		p->backlight_bit = drvthis->config_get_int(drvthis->name, "pin_BL", 0, RPI_DEF_BL);
 		debug(RPT_INFO, "hd_init_rpi: Backlight mapped to GPIO%d", p->backlight_bit);
 
 		if (check_pin(drvthis, p->backlight_bit, allowed_gpio_pins, used_pins) != 0) {
 			report(RPT_WARNING, "hd_init_rpi: Invalid backlight configuration - disabling backlight");
-			p->have_backlight = 0;
+			set_have_backlight_pin(p, 0);
 		}
 	}
 
@@ -374,7 +429,7 @@ hd_init_rpi(Driver *drvthis)
 	p->hd44780_functions->senddata = lcdrpi_HD44780_senddata;
 	p->hd44780_functions->close = lcdrpi_HD44780_close;
 
-	if (p->have_backlight) {
+	if (have_backlight_pin(p)) {
 		setup_gpio(drvthis, p->backlight_bit);
 		p->hd44780_functions->backlight = lcdrpi_HD44780_backlight;
 	}
@@ -384,12 +439,14 @@ hd_init_rpi(Driver *drvthis)
 	}
 
 	/* Setup the lcd in 4 bit mode: Send (FUNCSET | IF_8BIT) three times
-	 * followed by (FUNCSET | IF_4BIT) using four nibbles. Timing is not
-	 * exactly what is required by HD44780. */
-	p->hd44780_functions->senddata(p, 0, RS_INSTR, 0x33);
+	 * followed by (FUNCSET | IF_4BIT) using four nibbles. */
+	SET_GPIO(p->rpi_gpio->rs, 0);
+	send_nibble(p, (FUNCSET | IF_8BIT) >> 4, 0);
 	p->hd44780_functions->uPause(p, 4100);
-	p->hd44780_functions->senddata(p, 0, RS_INSTR, 0x32 );
+	send_nibble(p, (FUNCSET | IF_8BIT) >> 4, 0);
 	p->hd44780_functions->uPause(p, 150);
+	send_nibble(p, (FUNCSET | IF_8BIT) >> 4, 0);
+	send_nibble(p, (FUNCSET | IF_4BIT) >> 4, 0);
 
 	common_init(p, IF_4BIT);
 
@@ -407,68 +464,13 @@ hd_init_rpi(Driver *drvthis)
 void
 lcdrpi_HD44780_senddata(PrivateData *p, unsigned char displayID, unsigned char flags, unsigned char ch)
 {
-	/* Safeguard: This should never happen */
-	if (gpio_map == NULL) {
-		return;
+	/* Safeguard */
+	if (gpio_map != NULL) {
+		SET_GPIO(p->rpi_gpio->rs, (flags == RS_INSTR) ? 0 : 1);
+
+		send_nibble(p, ch >> 4, displayID);
+		send_nibble(p, ch, displayID);
 	}
-
-	if (flags == RS_INSTR) {
-		SET_GPIO(p->rpi_gpio->rs, 0);
-	}
-	else {			/* flags == RS_DATA */
-		SET_GPIO(p->rpi_gpio->rs, 1);
-	}
-	/* Clear data lines ready for nibbles */
-	SET_GPIO(p->rpi_gpio->d7, 0);
-	SET_GPIO(p->rpi_gpio->d6, 0);
-	SET_GPIO(p->rpi_gpio->d5, 0);
-	SET_GPIO(p->rpi_gpio->d4, 0);
-	p->hd44780_functions->uPause(p, 50);
-
-	/* Output upper nibble first */
-	SET_GPIO(p->rpi_gpio->d7, (ch & 0x80));
-	SET_GPIO(p->rpi_gpio->d6, (ch & 0x40));
-	SET_GPIO(p->rpi_gpio->d5, (ch & 0x20));
-	SET_GPIO(p->rpi_gpio->d4, (ch & 0x10));
-	p->hd44780_functions->uPause(p, 50);
-
-	/* Data is clocked on the falling edge of EN */
-	if (displayID == 1 || displayID == 0)
-		SET_GPIO(p->rpi_gpio->en, 1);
-	if (displayID == 2 || (p->numDisplays > 1 && displayID == 0))
-		SET_GPIO(p->rpi_gpio->en2, 1);
-	p->hd44780_functions->uPause(p, 50);
-
-	if (displayID == 1 || displayID == 0)
-		SET_GPIO(p->rpi_gpio->en, 0);
-	if (displayID == 2 || (p->numDisplays > 1 && displayID == 0))
-		SET_GPIO(p->rpi_gpio->en2, 0);
-	p->hd44780_functions->uPause(p, 50);
-
-	/* Do same for lower nibble */
-	SET_GPIO(p->rpi_gpio->d7, 0);
-	SET_GPIO(p->rpi_gpio->d6, 0);
-	SET_GPIO(p->rpi_gpio->d5, 0);
-	SET_GPIO(p->rpi_gpio->d4, 0);
-	p->hd44780_functions->uPause(p, 50);
-
-	SET_GPIO(p->rpi_gpio->d7, (ch & 0x08));
-	SET_GPIO(p->rpi_gpio->d6, (ch & 0x04));
-	SET_GPIO(p->rpi_gpio->d5, (ch & 0x02));
-	SET_GPIO(p->rpi_gpio->d4, (ch & 0x01));
-	p->hd44780_functions->uPause(p, 50);
-
-	if (displayID == 1 || displayID == 0)
-		SET_GPIO(p->rpi_gpio->en, 1);
-	if (displayID == 2 || (p->numDisplays > 1 && displayID == 0))
-		SET_GPIO(p->rpi_gpio->en2, 1);
-	p->hd44780_functions->uPause(p, 50);
-
-	if (displayID == 1 || displayID == 0)
-		SET_GPIO(p->rpi_gpio->en, 0);
-	if (displayID == 2 || (p->numDisplays > 1 && displayID == 0))
-		SET_GPIO(p->rpi_gpio->en2, 0);
-	p->hd44780_functions->uPause(p, 50);
 }
 
 

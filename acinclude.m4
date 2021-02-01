@@ -9,9 +9,9 @@ AC_ARG_ENABLE(drivers,
 	[                  which is a comma-separated list of drivers.]
 	[                  Possible drivers are:]
 	[                    bayrad,CFontz,CFontzPacket,curses,CwLnx,ea65,]
-	[                    EyeboxOne,g15,glcd,glcdlib,glk,hd44780,i2500vfd,]
+	[                    EyeboxOne,futaba,g15,glcd,glcdlib,glk,hd44780,i2500vfd,]
 	[                    icp_a106,imon,imonlcd,IOWarrior,irman,irtrans,]
-	[                    joy,lb216,lcdm001,lcterm,linux_input,lirc,lis,MD8800,mdm166a,]
+	[                    joy,jw002,lb216,lcdm001,lcterm,linux_input,lirc,lis,MD8800,mdm166a,]
 	[                    ms6931,mtc_s16209x,MtxOrb,mx5000,NoritakeVFD,]
 	[                    Olimex_MOD_LCD1x9,picolcd,pyramid,rawserial,]
 	[                    sdeclcd,sed1330,sed1520,serialPOS,serialVFD,]
@@ -23,7 +23,7 @@ AC_ARG_ENABLE(drivers,
 	drivers="$enableval",
 	drivers=[bayrad,CFontz,CFontzPacket,curses,CwLnx,glk,lb216,lcdm001,MtxOrb,pyramid,text])
 
-allDrivers=[bayrad,CFontz,CFontzPacket,curses,CwLnx,ea65,EyeboxOne,g15,glcd,glcdlib,glk,hd44780,i2500vfd,icp_a106,imon,imonlcd,IOWarrior,irman,irtrans,joy,lb216,lcdm001,lcterm,linux_input,lirc,lis,MD8800,mdm166a,ms6931,mtc_s16209x,MtxOrb,mx5000,NoritakeVFD,Olimex_MOD_LCD1x9,picolcd,pyramid,sdeclcd,sed1330,sed1520,serialPOS,serialVFD,shuttleVFD,sli,stv5730,SureElec,svga,t6963,text,tyan,ula200,vlsys_m428,xosd,rawserial,yard2LCD]
+allDrivers=[bayrad,CFontz,CFontzPacket,curses,CwLnx,ea65,EyeboxOne,futaba,g15,glcd,glcdlib,glk,hd44780,i2500vfd,icp_a106,imon,imonlcd,IOWarrior,irman,irtrans,joy,jw002,lb216,lcdm001,lcterm,linux_input,lirc,lis,MD8800,mdm166a,ms6931,mtc_s16209x,MtxOrb,mx5000,NoritakeVFD,Olimex_MOD_LCD1x9,picolcd,pyramid,sdeclcd,sed1330,sed1520,serialPOS,serialVFD,shuttleVFD,sli,stv5730,SureElec,svga,t6963,text,tyan,ula200,vlsys_m428,xosd,rawserial,yard2LCD]
 if test "$debug" = yes; then
 	allDrivers=["${allDrivers},debug"]
 fi
@@ -73,7 +73,7 @@ for driver in $selectdrivers ; do
 			AC_CHECK_LIB(ncurses, main, [
 				AC_CHECK_HEADER(ncurses.h, [
 					dnl We have ncurses.h and libncurses, add driver.
-	 				LIBCURSES="-lncurses"
+					LIBCURSES="-lncurses"
 					DRIVERS="$DRIVERS curses${SO}"
 					actdrivers=["$actdrivers curses"]
 				],[
@@ -136,19 +136,33 @@ dnl				else
 			DRIVERS="$DRIVERS EyeboxOne${SO}"
 			actdrivers=["$actdrivers EyeboxOne"]
 			;;
+                futaba)
+			if test "$enable_libusb_1_0" = yes ; then
+	                        DRIVERS="$DRIVERS futaba${SO}"
+				actdrivers=["$actdrivers futaba"]
+				AC_MSG_RESULT([The futaba driver is using the libusb-1.0 library.])
+                        elif test "$enable_libusb" = yes ; then
+                                DRIVERS="$DRIVERS futaba${SO}"
+				actdrivers=["$actdrivers futaba"]
+				AC_MSG_RESULT([The futaba driver is using the libusb-0.1 library.])
+                        else
+                                AC_MSG_WARN([The futaba driver needs the libusb library.])
+                        fi
+                        ;;
 		g15)
 			AC_CHECK_HEADERS([g15daemon_client.h],[
 				AC_CHECK_LIB(g15daemon_client, new_g15_screen,[
 					LIBG15="-lg15daemon_client"
+					AC_DEFINE(HAVE_G15DAEMON_CLIENT, [1], [Define to 1 if you have the g15daemon_client library])
 				],[
 dnl				else
-					AC_MSG_WARN([The g15 driver needs libg15daemon_client-1.2 or better])
+					AC_MSG_WARN([libg15daemon_client not found, the g15 driver will lack g15daemon support])
 				],
 				[-lg15daemon_client]
 				)
 			],[
 dnl			else
-				AC_MSG_WARN([The g15 driver needs g15daemon_client.h])
+				AC_MSG_WARN([libg15daemon_client.h not found, the g15 driver will lack g15daemon support])
 			])
 			AC_CHECK_HEADERS([libg15render.h],[
 				AC_CHECK_LIB(g15render, g15r_initCanvas,[
@@ -215,9 +229,16 @@ dnl			else
 			actdrivers=["$actdrivers glk"]
 			;;
 		hd44780)
-			HD44780_DRIVERS="hd44780-hd44780-serial.o hd44780-hd44780-lis2.o hd44780-hd44780-usblcd.o hd44780-hd44780-lcm162.o"
+			HD44780_DRIVERS="hd44780-hd44780-serial.o hd44780-hd44780-lis2.o hd44780-hd44780-usblcd.o"
+			AC_CHECK_LIB(ugpio, main,[
+				HD44780_DRIVERS="$HD44780_DRIVERS hd44780-hd44780-gpio.o"
+				LIBUGPIO="-lugpio"
+				AC_DEFINE(HAVE_UGPIO, [1], [Define to 1 if you have libugpio])
+			],[
+				AC_MSG_WARN([Could not find libugpio, not building hd44780-gpio driver])
+			])
 			if test "$ac_cv_port_have_lpt" = yes ; then
-				HD44780_DRIVERS="$HD44780_DRIVERS hd44780-hd44780-4bit.o hd44780-hd44780-ext8bit.o hd44780-lcd_sem.o hd44780-hd44780-winamp.o hd44780-hd44780-serialLpt.o"
+				HD44780_DRIVERS="$HD44780_DRIVERS hd44780-hd44780-4bit.o hd44780-hd44780-ext8bit.o hd44780-hd44780-winamp.o hd44780-hd44780-serialLpt.o hd44780-hd44780-lcm162.o"
 			fi
 			if test "$enable_libusb" = yes ; then
 				HD44780_DRIVERS="$HD44780_DRIVERS hd44780-hd44780-bwct-usb.o hd44780-hd44780-lcd2usb.o hd44780-hd44780-uss720.o hd44780-hd44780-usbtiny.o hd44780-hd44780-usb4all.o"
@@ -302,6 +323,10 @@ dnl				else
 				AC_MSG_WARN([The joy driver needs header file linux/joystick.h.])
 			])
 			;;
+		jw002)
+			DRIVERS="$DRIVERS jw002${SO}"
+			actdrivers="$actdrivers jw002"
+			;;
 		lb216)
 			DRIVERS="$DRIVERS lb216${SO}"
 			actdrivers=["$actdrivers lb216"]
@@ -348,15 +373,11 @@ dnl			else
 				AC_MSG_WARN([The lis driver needs pthread.h])
 			])
 			if test "$enable_libftdi" = yes ; then
-				if test "$enable_libusb" = yes; then
-					if test "$ac_cv_lis_pthread" = yes; then
-						DRIVERS="$DRIVERS lis${SO}"
-						actdrivers=["$actdrivers lis"]
-					else
-						AC_MSG_WARN([The lis driver needs the pthread library])
-					fi
+				if test "$ac_cv_lis_pthread" = yes; then
+					DRIVERS="$DRIVERS lis${SO}"
+					actdrivers=["$actdrivers lis"]
 				else
-					AC_MSG_WARN([The lis driver needs the usb library])
+					AC_MSG_WARN([The lis driver needs the pthread library])
 				fi
 			else
 				AC_MSG_WARN([The lis driver needs the ftdi library])
@@ -419,14 +440,14 @@ dnl			else
 			actdrivers=["$actdrivers rawserial"]
 			;;
 		picolcd)
-			if test "$enable_libusb" = yes ; then
+			if test "$enable_libusb_1_0" = yes ; then
 				DRIVERS="$DRIVERS picolcd${SO}"
 				actdrivers=["$actdrivers picolcd"]
-				if test "$enable_libusb_1_0" = yes ; then
-					AC_MSG_RESULT([The picolcd driver is using the libusb-1.0 library.])
-				else
-					AC_MSG_RESULT([The picolcd driver is using the libusb-0.1 library.])
-				fi
+				AC_MSG_RESULT([The picolcd driver is using the libusb-1.0 library.])
+			elif test "$enable_libusb" = yes ; then
+				DRIVERS="$DRIVERS picolcd${SO}"
+				actdrivers=["$actdrivers picolcd"]
+				AC_MSG_RESULT([The picolcd driver is using the libusb-0.1 library.])
 			else
 				AC_MSG_WARN([The picolcd driver needs the libusb library.])
 			fi
@@ -588,6 +609,7 @@ AC_SUBST(LIBFTDI)
 AC_SUBST(LIBXOSD)
 AC_SUBST(LIBPTHREAD_LIBS)
 AC_SUBST(LIBMX5000)
+AC_SUBST(LIBUGPIO)
 ])
 
 

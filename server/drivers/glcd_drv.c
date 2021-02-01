@@ -49,7 +49,7 @@
 #include "glcd_drv.h"
 #include "glcd-low.h"
 #include "glcd-drivers.h"
-#include "report.h"
+#include "shared/report.h"
 #include "glcd-render.h"
 #include "shared/defines.h"
 #include "timing.h"
@@ -261,6 +261,7 @@ glcd_init(Driver *drvthis)
 			drvthis->name, p->key_repeat_delay, p->key_repeat_interval);
 
 	glcd_clear(drvthis);
+	glcd_set_contrast(drvthis, p->contrast);
 
 	return 0;
 }

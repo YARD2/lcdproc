@@ -217,6 +217,11 @@ pip-log.txt
 
 Makefile
 Makefile.in
+LCDd
+lcdproc
+lcdexec
+lcdvc
+Doxyfile
 aclocal.m4
 autom4te.cache
 compile
@@ -241,3 +246,11 @@ tags
 *.debian
 *.LSB
 *.rpm
+*.1
+*.5
+*.8
+*.gz
+*.db
+
+*.patch
+*.diff

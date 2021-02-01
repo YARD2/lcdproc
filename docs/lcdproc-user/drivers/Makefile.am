@@ -7,6 +7,7 @@ EXTRA_DIST =	bayrad.docbook \
 		CwLnx.docbook \
 		ea65.docbook \
 		eyeboxone.docbook \
+		futaba.docbook \
 		g15.docbook \
 		glcd.docbook \
 		glcdlib.docbook \
@@ -23,6 +24,7 @@ EXTRA_DIST =	bayrad.docbook \
 		lb216.docbook \
 		lcdm001.docbook \
 		lcterm.docbook \
+		linux_input.docbook \
 		lircin.docbook \
 		lis.docbook \
 		MD8800.docbook \

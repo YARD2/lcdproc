@@ -1,4 +1,30 @@
 v0.5dev (ongoing development)
+  - [added] WINSTAR WEH001602A font bank 1 charmap and font bank selector
+  - [fixed] HD44780: turn off display during initialization to not show garbage
+  - [added] HD44780: support almost compatible WINSTAR OLED displays
+  - [added] HD44780: support internal backlight mode of modern controllers
+
+v0.5.9
+  - [removed] scripts/debian (https://github.com/lcdproc/lcdproc/issues/39)
+  - [fixed] spurious (direct) dependencies of ftdi drivers on libusb
+  - [API] now drivers need to include "shared/report.h" instead of "report.h"
+  - [fixed] autorotate setting - the old code was likely broken on most systems
+  - [fixed] As default always use nanosleep() for delays
+  - [fixed] Use libftdi1 if it is available instead of obsolete libftdi
+  - [fixed] Make SEAMLESS_HBARS feature selectable by the drivers individually
+  - [added] hd44780-gpio now supports dual controller displays
+  - [added] percent glyph to 14-segment font
+  - [fixed] Make display update interval selectable from LCDd.conf
+  - [fixed] Move --enable-permissive-menu-goto from configure to LCDd.conf
+  - [fixed] Segfault in LL_Find() on empty list
+  - [fixed] Add C99 (https://github.com/lcdproc/lcdproc/issues/81)
+  - [added] Add Portwell EZIO-100 and EZIO-300 support to serial HD44780 driver
+  - [fixed] Removed stale variable in hd44780-i2c.c
+  - [fixed] Removed stale screen_add_key_func
+  - [fixed] Removed stale screen_del_key_func 
+
+v0.5.8
+  - [added] Add driver for the Futaba TOSD-5711BB VFDisplay on Elonex Artisan/Scaleo/FIC Spectra Media Centre PCs
   - [added] Add travis file for Auto build testing of lcdproc (https://github.com/lcdproc/lcdproc/pull/2)
   - [fixed] Update hd44780-i2c driver, pins defined via config file, rather than hardcoded (https://github.com/lcdproc/lcdproc/pull/1)
   - [fixed] Portability fixes (https://github.com/lcdproc/lcdproc/pull/4)
@@ -7,6 +33,21 @@ v0.5dev (ongoing development)
   - [fixed] Cleanup I2C handling (https://github.com/lcdproc/lcdproc/pull/8)
   - [fixed] Add more patterns to .gitignore (https://github.com/lcdproc/lcdproc/pull/9)
   - [added] New driver for Olimex MOD-LCD1x9
+  - [fixed] Allow multibyte characters (from string widget)
+  - [added] New driver for YARD2 devices (https://github.com/lcdproc/lcdproc/pull/19)
+  - [fixed] Handle backlight mode 'open' correctly (Bug#48 at sourceforge)
+  - [fixed] lcdexec: make automatic action menus work (https://sourceforge.net/p/lcdproc/bugs/47/)
+  - [added] Add support for icp_a125 to icp_a106 driver (https://github.com/lcdproc/lcdproc/pull/22)
+  - [added] New hd44780 connection type using libugpio
+  - [fixed] glcd driver: apply initial contrast setting (https://github.com/lcdproc/lcdproc/issues/12)
+  - [API] removed report() pointer from struct lcd_logical_driver
+  - [fixed] imonlcd: improve error logging
+  - [fixed] NoritakeVFD: Fix cursor positioning (https://github.com/lcdproc/lcdproc/pull/30)
+  - [fixed] NoritakeVFD: Increase # of Custom Characters (https://github.com/lcdproc/lcdproc/pull/29)
+  - [fixed] hd44780: removed outdated semaphore code (https://github.com/lcdproc/lcdproc/issues/34)
+  - [fixed] hd44780-rpi: Improve board detection (https://github.com/lcdproc/lcdproc/pull/42)
+  - [fixed] Don't disable libusb-1.0 just because legacy libusb isn't available
+  - [fixed] hd44780-rpi.c: Allow pin 2 on raspberry pi rev. 2 baords (https://github.com/lcdproc/lcdproc/issues/43)
 
 v0.5.7
  - [fixed] Fix using the left key to change the ring and checkbox menu items

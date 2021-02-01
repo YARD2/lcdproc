@@ -45,6 +45,9 @@
 #ifdef WITH_RASPBERRYPI
 # include "hd44780-rpi.h"
 #endif
+#ifdef HAVE_UGPIO
+# include "hd44780-gpio.h"
+#endif
 /* add new connection type header files to the correct section above or here */
 
 
@@ -70,6 +73,7 @@ static const ConnectionMapping connectionMapping[] = {
 	{ "vdr-lcd",       HD44780_CT_VDR_LCD,       IF_TYPE_SERIAL,  hd_init_serial    },
 	{ "vdr-wakeup",    HD44780_CT_VDR_WAKEUP,    IF_TYPE_SERIAL,  hd_init_serial    },
 	{ "pertelian",     HD44780_CT_PERTELIAN,     IF_TYPE_SERIAL,  hd_init_serial    },
+	{ "ezio",          HD44780_CT_EZIO,          IF_TYPE_SERIAL,  hd_init_serial    },
 	/* USB connection types */
 	{ "lis2",          HD44780_CT_LIS2,          IF_TYPE_USB,     hd_init_lis2      },
 	{ "mplay",         HD44780_CT_MPLAY,         IF_TYPE_USB,     hd_init_lis2      },
@@ -99,6 +103,9 @@ static const ConnectionMapping connectionMapping[] = {
 #endif
 #ifdef WITH_RASPBERRYPI
 	{ "raspberrypi",   HD44780_CT_RASPBERRYPI,   IF_TYPE_PARPORT,  hd_init_rpi      },
+#endif
+#ifdef HAVE_UGPIO
+	{ "gpio",          HD44780_CT_GPIO,          IF_TYPE_PARPORT, hd_init_gpio      },
 #endif
 	/* add new connection types in the correct section above or here */
 
