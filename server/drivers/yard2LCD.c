@@ -58,7 +58,7 @@ typedef enum {
 /* Driver private data */
 typedef struct driver_private_data {
 	int fd;
-	int width, height;
+	unsigned char width, height;
 	int gwidth, gheight;
 	int hspace, vspace;
 	int cellwidth, cellheight;
@@ -70,7 +70,8 @@ typedef struct driver_private_data {
 	CGmode ccmode;
 	Dmode dispmode;
 	char info[255];
-	char LCDtype;
+	unsigned char LCDtype;
+	unsigned char LCD_FONT;
 } PrivateData;
 
 /* Prototypes of internal functions */
@@ -325,16 +326,18 @@ yard_init(Driver *drvthis)
 	}
 	else if (byteCnt == 1) 
 	{
-		report(RPT_ERR, "%s: YARD communication timeout !", drvthis->name);
+		report(RPT_ERR, "%s: YARD2 communication timeout !", drvthis->name);
 		return -1;
 	}
 
 	//Receiveconfig format: 0='C';1=sizeX;2=sizeY;3=LCDType(0=HD44780,1=KS0066,2=T6963,3=KS0108)
 	if(Recbuffer[0] == 'C') //C=Config
 	{
-		p->width   = Recbuffer[1];
-		p->height  = Recbuffer[2];
-		p->LCDtype = Recbuffer[3];
+		p->width    = Recbuffer[1];
+		p->height   = Recbuffer[2];
+		p->LCDtype  = Recbuffer[3];
+		p->LCD_FONT = Recbuffer[4];
+		report(RPT_ERR, "YARD2 config  : W:%d - H:%d - Type:%d - Font:%d", p->width,p->height,p->LCDtype,p->LCD_FONT);
 	}
 	else
 	{
@@ -342,10 +345,21 @@ yard_init(Driver *drvthis)
 		return -1;
 	}
 
-	if(p->LCDtype > 1) //only char LCDs are currently supported
+	if(p->LCDtype > 4) //only 4 types possible non supported LCDs
 	{
-		report(RPT_ERR, "%s: YARD LCD type %d not supported by this version or the driver !", drvthis->name,p->LCDtype);
+		report(RPT_ERR, "%s: YARD2 LCD type %d not supported by this version or the driver !", drvthis->name,p->LCDtype);
 		return -1;
+	}
+	
+	if( (p->LCDtype >= 1) && (p->LCDtype <= 3) ) //GLCDs in Char mode, set pixel to charwidth (/8)
+	{
+			p->gwidth = p->width;
+			p->gheight = p->height;
+			if(p->LCD_FONT == 0) p->width = (p->width / 8); //8x8
+			if(p->LCD_FONT == 1) p->width = (p->width / 6); //6x8
+			p->height = (p->height / 8);
+			report(RPT_ERR, "GLCD Graphic mode: W:%d - H:%d  :  NOT SUPPORTED", p->gwidth,p->gheight);
+			report(RPT_ERR, "GLCD Char mode   : W:%d - H:%d", p->width,p->height);
 	}
 	
 	// Allocate framebuf & Setup frame buffer x2 to be sure that the buffer is big enough
@@ -371,6 +385,8 @@ yard_init(Driver *drvthis)
 	tmp = DEFAULT_OFF_BRIGHTNESS;
 	p->off_brightness = tmp;
 
+    //clear LCD in init
+    yard_hwClearLCD(drvthis);
 
 	report(RPT_DEBUG, "%s: Init done", drvthis->name);
 	return 0;
