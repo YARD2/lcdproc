@@ -20,9 +20,9 @@
 #ifndef yard2LCD_H
 #define yard2LCD_H
 
-#define MAX_YARDDATA_SIZE		40
-#define DEFAULT_SOCK_PATH        "/tmp/lcdserver"
-#define DEFAULT_OFF_BRIGHTNESS	 100
+#define MAX_YARDDATA_SIZE	40
+#define DEFAULT_SOCK_PATH       "/tmp/lcdserver"
+#define DEFAULT_OFF_BRIGHTNESS	 0
 #define DEFAULT_ON_BRIGHTNESS	 1000
 #define DEFAULT_WIDTH		16
 #define DEFAULT_HEIGHT		4

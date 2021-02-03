@@ -32,7 +32,7 @@
 #include <time.h>
 
 #include "lcd.h"
-//#define DEBUG
+#define DEBUG
 #include "shared/report.h"
 #include "yard2LCD.h"
 #include "lcd_lib.h"
@@ -64,9 +64,9 @@ typedef struct driver_private_data {
 	int cellwidth, cellheight;
 	int bigcellwidth, bigcellheight;
 	unsigned char *framebuf;
-	int on_brightness;
-	int off_brightness;
-	char hw_brightness;
+	unsigned short on_brightness;
+	unsigned short off_brightness;
+	unsigned short hw_brightness;
 	CGmode ccmode;
 	Dmode dispmode;
 	char info[255];
@@ -81,7 +81,7 @@ static int yard_hwClearLCD(Driver *drvthis);
 static int yard_hwGotoXY(Driver *drvthis, unsigned char x, unsigned char y);
 //static int yard_hwPrintChar(Driver *drvthis, char c);
 static int yard_hwPrintCharArray(Driver *drvthis, unsigned char *str, unsigned char len);
-static int yard_hwSetBrightness(Driver *drvthis, unsigned char brightVal);
+static int yard_hwSetBrightness(Driver *drvthis, unsigned short brightVal);
 static int yard_hwWriteCGRam(Driver *drvthis, unsigned char numChar, unsigned char *data);
 
 
@@ -225,14 +225,15 @@ yard_hwPrintCharArray(Driver *drvthis, unsigned char *str, unsigned char len)
  * Hardware function: Sets brightness of the backlight
  */
 static int 
-yard_hwSetBrightness(Driver *drvthis, unsigned char brightVal)
+yard_hwSetBrightness(Driver *drvthis, unsigned short brightVal)
 {
 	debug(RPT_DEBUG, "%s: Event 06 - Enter yard_hwSetBrightness: %d",drvthis->name,brightVal);
 	
 	// Setup YARD command
 	yardCmd[0] = 'B';
-	yardCmd[1] = brightVal;
-	return yard_hwWrite(drvthis, yardCmd, 2);
+	yardCmd[1] = (brightVal & 0x00FF);
+	yardCmd[2] = ((brightVal & 0xFF00) >> 8);
+	return yard_hwWrite(drvthis, yardCmd, 3);
 }
 
 /*
@@ -258,7 +259,7 @@ yard_init(Driver *drvthis)
 {
 	debug(RPT_DEBUG, "%s: Event 08 - Enter yard_init",drvthis->name);
 	struct sockaddr_un srvAddr;
-	int tmp, srvAddrLen;
+	int srvAddrLen;
 	PrivateData *p;
 	char sockpath[200] = DEFAULT_SOCK_PATH; 
 	unsigned char byteCnt;
@@ -282,12 +283,15 @@ yard_init(Driver *drvthis)
 	p->vspace = DEFAULT_VSPACE;
 	p->ccmode = standard;
 	p->dispmode = Dmode_standard;
-	p->LCDtype = 0; //only use 0=HD44780; not supported now 1=KS0066;2=T6963c;3=KS0108
+	p->LCDtype = 0; //Char mode only 0=HD44780,1=KS0066;2=T6963c;3=KS0108
 	p->width  = DEFAULT_WIDTH;
 	p->height = DEFAULT_HEIGHT;
 	p->gwidth = DEFAULT_GWIDTH;
 	p->gheight = DEFAULT_GHEIGHT;
-
+	p->on_brightness = DEFAULT_ON_BRIGHTNESS;
+	p->off_brightness= DEFAULT_OFF_BRIGHTNESS;
+	p->hw_brightness = 500;
+	
 	// Establish connection to YARD server
 	bzero( (char *)&srvAddr, sizeof(srvAddr));
 	srvAddr.sun_family = AF_UNIX;
@@ -296,11 +300,11 @@ yard_init(Driver *drvthis)
 	
 	p->fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (p->fd < 0) {
-		report(RPT_ERR, "%s: Can't create socket !", drvthis->name);
+		report(RPT_ERR, "%s: >>>>> YARD2 Can't create socket !", drvthis->name);
 		return -1;
 	}
 	if (connect(p->fd, (struct sockaddr *)&srvAddr, srvAddrLen) < 0) {
-		report(RPT_ERR, "%s: Can't connect to yardsrv !", drvthis->name);
+		report(RPT_ERR, "%s: >>>>> YARD2 Can't connect to yardsrv ! Other LCD-App running ?", drvthis->name);
 		return -1;
 	}
 	
@@ -309,7 +313,7 @@ yard_init(Driver *drvthis)
 	byteCnt = write(p->fd,Recbuffer, strlen(Recbuffer)); 
 	if (byteCnt < 0) 
 	{
-		report(RPT_ERR, "%s: Can't send config request to YARD2 LCDserver !", drvthis->name);
+		report(RPT_ERR, "%s: >>>>> YARD2 Can't send config request to YARD2 LCDserver !", drvthis->name);
 		return -1;
 	}
 
@@ -317,12 +321,12 @@ yard_init(Driver *drvthis)
 	byteCnt = read(p->fd, Recbuffer, sizeof(Recbuffer) );
 	if (byteCnt < 0) 
 	{
-		report(RPT_ERR, "%s: Cannot receive config from YARD server !", drvthis->name);
+		report(RPT_ERR, "%s: >>>>> YARD2 Cannot receive config from YARD server !", drvthis->name);
 		return -1;
 	}
 	else if (byteCnt == 1) 
 	{
-		report(RPT_ERR, "%s: YARD2 communication timeout !", drvthis->name);
+		report(RPT_ERR, "%s: >>>>> YARD2 communication timeout !", drvthis->name);
 		return -1;
 	}
 
@@ -333,17 +337,17 @@ yard_init(Driver *drvthis)
 		p->height   = Recbuffer[2];
 		p->LCDtype  = Recbuffer[3];
 		p->LCD_FONT = Recbuffer[4];
-		report(RPT_ERR, "YARD2 config  : W:%d - H:%d - Type:%d - Font:%d", p->width,p->height,p->LCDtype,p->LCD_FONT);
+		report(RPT_INFO, "YARD2 config  : W:%d - H:%d - Type:%d - Font:%d", p->width,p->height,p->LCDtype,p->LCD_FONT);
 	}
 	else
 	{
-		report(RPT_ERR, "%s: YARD Config Receive error !", drvthis->name);
+		report(RPT_ERR, "%s: >>>>> YARD2 Config Receive error !", drvthis->name);
 		return -1;
 	}
 
 	if(p->LCDtype > 4) //only 4 types possible non supported LCDs
 	{
-		report(RPT_ERR, "%s: YARD2 LCD type %d not supported by this version or the driver !", drvthis->name,p->LCDtype);
+		report(RPT_ERR, "%s: >>>>> YARD2 LCD type %d not supported by this version or the driver !", drvthis->name,p->LCDtype);
 		return -1;
 	}
 	
@@ -354,15 +358,15 @@ yard_init(Driver *drvthis)
 			if(p->LCD_FONT == 0) p->width = (p->width / 8); //8x8
 			if(p->LCD_FONT == 1) p->width = (p->width / 6); //6x8
 			p->height = (p->height / 8);
-			report(RPT_ERR, "GLCD Graphic mode: W:%d - H:%d  :  NOT SUPPORTED", p->gwidth,p->gheight);
-			report(RPT_ERR, "GLCD Char mode   : W:%d - H:%d", p->width,p->height);
+			report(RPT_INFO, "YARD2 GLCD Graphic mode: W:%d - H:%d  :  NOT SUPPORTED", p->gwidth,p->gheight);
+			report(RPT_INFO, "YARD2 GLCD Char mode   : W:%d - H:%d", p->width,p->height);
 	}
 	
 	// Allocate framebuf & Setup frame buffer x2 to be sure that the buffer is big enough
 	p->framebuf = (unsigned char *) malloc((p->width * p->height)*2);
 	if (p->framebuf == NULL) 
 	{
-		report(RPT_ERR, "%s: Can't create framebuffer !", drvthis->name);
+		report(RPT_ERR, "%s: >>>>> YARD2 Can't create framebuffer !", drvthis->name);
 		return -1;
 	}
 	memset(p->framebuf, ' ', (p->width * p->height)*2);
@@ -371,15 +375,6 @@ yard_init(Driver *drvthis)
 	// Init size and graphical size
 */	
 
-/*	
-	// Init backlight-on brightness -> done by YARD2 normally in auto mode
-*/
-	p->on_brightness = DEFAULT_ON_BRIGHTNESS;
-/*
-	// Init backlight-off brightness -> done by YARD2 normally in auto mode
-*/
-	tmp = DEFAULT_OFF_BRIGHTNESS;
-	p->off_brightness = tmp;
 
     //clear LCD in init
     yard_hwClearLCD(drvthis);
@@ -647,15 +642,15 @@ yard_backlight(Driver *drvthis, int on)
 	debug(RPT_DEBUG, "%s: Event 22 - Enter yard_backlight: %d",drvthis->name,on);
 	PrivateData *p = (PrivateData *)drvthis->private_data;
 
-	int hardware_value = (on == BACKLIGHT_ON) ? p->on_brightness : p->off_brightness;
+	unsigned short hardware_value = (on == BACKLIGHT_ON) ? p->on_brightness : p->off_brightness;
 
 	// Map range to hardware [0, 1000] -> [0, 255]
-	hardware_value /= 4;
+	//hardware_value /= 4;
 	if (hardware_value != p->hw_brightness) 
 	{
 		// Send command and update private data
 		yard_hwSetBrightness(drvthis, hardware_value);
-		p->hw_brightness = (char)hardware_value;
+		p->hw_brightness = hardware_value;
 	}
 }
 
