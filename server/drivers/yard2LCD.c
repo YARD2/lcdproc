@@ -157,7 +157,6 @@ yard_hwGotoXY(Driver *drvthis, unsigned char x, unsigned char y)
 {
 	debug(RPT_DEBUG, "%s: Event 03 - Enter yard_hwGotoXY: X.%d - Y.%d",drvthis->name,x,y);
 	PrivateData *p = (PrivateData *)drvthis->private_data;
-	unsigned char cmdBuf[5];
 
 	// Error check
 	switch (p->dispmode)
@@ -168,10 +167,10 @@ yard_hwGotoXY(Driver *drvthis, unsigned char x, unsigned char y)
 				return -1;
 			
 			// Setup and send YARD command
-			cmdBuf[0] = 'G';
-			cmdBuf[1] = x - 1;	// Zero index start ! lcdproc starts with 1,1, YARD 0,0
-			cmdBuf[2] = y - 1;
-			return yard_hwWrite(drvthis, cmdBuf, 3);
+			yardCmd[0] = 'G';
+			yardCmd[1] = x - 1;	// Zero index start ! lcdproc starts with 1,1, YARD 0,0
+			yardCmd[2] = y - 1;
+			return yard_hwWrite(drvthis, yardCmd, 3);
 			
 		}
 		default: {
@@ -207,7 +206,6 @@ static int
 yard_hwPrintCharArray(Driver *drvthis, unsigned char *str, unsigned char len)
 {
 	debug(RPT_DEBUG, "%s: Event 05 - Enter yard_hwPrintCharArray: %d - %s",drvthis->name,len,str);
-	unsigned char cmdBuf[MAX_YARDDATA_SIZE];
 	
 	// Error check
 	if (len > MAX_YARDDATA_SIZE) 
@@ -216,11 +214,11 @@ yard_hwPrintCharArray(Driver *drvthis, unsigned char *str, unsigned char len)
 		return -1;
 	}
 	
-	cmdBuf[0] = 'W';
-	memcpy(&cmdBuf[1], str, len);
+	yardCmd[0] = 'W';
+	memcpy(&yardCmd[1], str, len);
 	
 	// Send command
-	return yard_hwWrite(drvthis, cmdBuf, len + 1);
+	return yard_hwWrite(drvthis, yardCmd, len + 1);
 }
 
 /*
@@ -230,12 +228,11 @@ static int
 yard_hwSetBrightness(Driver *drvthis, unsigned char brightVal)
 {
 	debug(RPT_DEBUG, "%s: Event 06 - Enter yard_hwSetBrightness: %d",drvthis->name,brightVal);
-	unsigned char cmdBuf[3];
 	
 	// Setup YARD command
-	cmdBuf[0] = 'B';
-	cmdBuf[1] = brightVal;
-	return yard_hwWrite(drvthis, cmdBuf, 2);
+	yardCmd[0] = 'B';
+	yardCmd[1] = brightVal;
+	return yard_hwWrite(drvthis, yardCmd, 2);
 }
 
 /*
@@ -245,13 +242,12 @@ static int
 yard_hwWriteCGRam(Driver *drvthis, unsigned char numChar, unsigned char *data)
 {
 	debug(RPT_DEBUG, "%s: Event 07 - Enter yard_hwWriteCGRam: %d - %02X",drvthis->name,numChar,data);
-	unsigned char cmdBuf[11];
 	
 	// Setup YARD command
-	cmdBuf[0] = 'I';
-	cmdBuf[1] = numChar;
-	memcpy(&cmdBuf[2], data, 8);
-	return yard_hwWrite(drvthis, cmdBuf, 10);
+	yardCmd[0] = 'I';
+	yardCmd[1] = numChar;
+	memcpy(&yardCmd[2], data, 8);
+	return yard_hwWrite(drvthis, yardCmd, 10);
 }
 
 /*
