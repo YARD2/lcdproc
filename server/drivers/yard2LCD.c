@@ -32,7 +32,6 @@
 #include <time.h>
 
 #include "lcd.h"
-#define DEBUG
 #include "shared/report.h"
 #include "yard2LCD.h"
 #include "lcd_lib.h"
@@ -66,7 +65,6 @@ typedef struct driver_private_data {
 	unsigned char *framebuf;
 	unsigned short on_brightness;
 	unsigned short off_brightness;
-	unsigned short hw_brightness;
 	CGmode ccmode;
 	Dmode dispmode;
 	char info[255];
@@ -290,7 +288,6 @@ yard_init(Driver *drvthis)
 	p->gheight = DEFAULT_GHEIGHT;
 	p->on_brightness = DEFAULT_ON_BRIGHTNESS;
 	p->off_brightness= DEFAULT_OFF_BRIGHTNESS;
-	p->hw_brightness = 500;
 	
 	// Establish connection to YARD server
 	bzero( (char *)&srvAddr, sizeof(srvAddr));
@@ -646,12 +643,8 @@ yard_backlight(Driver *drvthis, int on)
 
 	// Map range to hardware [0, 1000] -> [0, 255]
 	//hardware_value /= 4;
-	if (hardware_value != p->hw_brightness) 
-	{
-		// Send command and update private data
-		yard_hwSetBrightness(drvthis, hardware_value);
-		p->hw_brightness = hardware_value;
-	}
+	// Send command and update private data
+	yard_hwSetBrightness(drvthis, hardware_value);
 }
 
 /*
