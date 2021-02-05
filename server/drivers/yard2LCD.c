@@ -65,6 +65,7 @@ typedef struct driver_private_data {
 	unsigned char *framebuf;
 	unsigned short on_brightness;
 	unsigned short off_brightness;
+	unsigned short last_brightness;
 	CGmode ccmode;
 	Dmode dispmode;
 	char info[255];
@@ -288,6 +289,7 @@ yard_init(Driver *drvthis)
 	p->gheight = DEFAULT_GHEIGHT;
 	p->on_brightness = DEFAULT_ON_BRIGHTNESS;
 	p->off_brightness= DEFAULT_OFF_BRIGHTNESS;
+	p->last_brightness = 0;
 	
 	// Establish connection to YARD server
 	bzero( (char *)&srvAddr, sizeof(srvAddr));
@@ -387,6 +389,7 @@ MODULE_EXPORT void
 yard_close(Driver *drvthis)
 {
 	debug(RPT_DEBUG, "%s: Event 09 - Enter yard_close",drvthis->name);
+	yard_hwSetBrightness(drvthis, 512); //Lower Brightness to half value
 	PrivateData *p = (PrivateData *)drvthis->private_data;
 	
 	if (p != NULL) {
@@ -640,11 +643,14 @@ yard_backlight(Driver *drvthis, int on)
 	PrivateData *p = (PrivateData *)drvthis->private_data;
 
 	unsigned short hardware_value = (on == BACKLIGHT_ON) ? p->on_brightness : p->off_brightness;
+	
+	// Send command and update private data, but only if brightness has changed
+    if(p->last_brightness != hardware_value)
+	{
+		yard_hwSetBrightness(drvthis, hardware_value);
+		p->last_brightness = hardware_value;
+	}
 
-	// Map range to hardware [0, 1000] -> [0, 255]
-	//hardware_value /= 4;
-	// Send command and update private data
-	yard_hwSetBrightness(drvthis, hardware_value);
 }
 
 /*
